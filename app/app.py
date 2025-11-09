@@ -157,25 +157,68 @@ elif option == "Upload Video (MP4)":
 elif option == "Live Camera Detection":
     st.info("🎥 Starting live defect detection (allow camera access).")
 
+    # Ask user if they want to save the live detection output
+    save_live = st.radio(
+        "💾 Do you want to save detected live video output?",
+        ["No", "Yes"],
+        index=0,
+        horizontal=True
+    )
+
     class YOLOVideoProcessor(VideoProcessorBase):
         def __init__(self):
             self.model = model
+            self.save_output = (save_live == "Yes")
+            self.frames = []
+            self.frame_size = None
 
         def recv(self, frame):
             img = frame.to_ndarray(format="bgr24")
             results = self.model(img)
             annotated = results[0].plot()
+
+            # Store frames if saving is enabled
+            if self.save_output:
+                self.frames.append(annotated)
+                if self.frame_size is None:
+                    self.frame_size = (annotated.shape[1], annotated.shape[0])
+
             return av.VideoFrame.from_ndarray(annotated, format="bgr24")
 
-    webrtc_streamer(
+        def save_video(self):
+            """Save all collected frames into a video file."""
+            if self.save_output and self.frames:
+                output_path = "live_output.avi"
+                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                out = cv2.VideoWriter(output_path, fourcc, 20.0, self.frame_size)
+                for f in self.frames:
+                    out.write(f)
+                out.release()
+                return output_path
+            return None
+
+    processor_instance = YOLOVideoProcessor()
+
+    ctx = webrtc_streamer(
         key="live_yolo_defect",
         mode=WebRtcMode.SENDRECV,
-        video_processor_factory=YOLOVideoProcessor,
+        video_processor_factory=lambda: processor_instance,
         media_stream_constraints={"video": True, "audio": False},
     )
+
+    # Button to stop and save video (if user chose to save)
+    if save_live == "Yes" and ctx.video_processor:
+        if st.button("🛑 Stop & Save Video"):
+            path = ctx.video_processor.save_video()
+            if path:
+                st.success(f"🎬 Live detection saved as `{path}`")
+            else:
+                st.warning("⚠️ No frames captured yet.")
+
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
 st.caption("⚙️ Built by Pavan Kalyan | YOLOv8 + Streamlit + WebRTC")
+
