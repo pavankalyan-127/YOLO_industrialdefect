@@ -1,6 +1,6 @@
-ultralytics
-opencv-python-headless
-streamlit
+ultralytics==8.2.50
+opencv-python-headless==4.10.0.84
+streamlit==1.39.0
 Pillow
 torch
 torchvision
