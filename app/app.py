@@ -9,17 +9,19 @@ import os
 # -------------------- PAGE SETUP --------------------
 st.set_page_config(page_title="Industrial Defect Detection", layout="wide")
 st.title("🏭 Industrial Defect Detection using YOLOv8")
-st.write("Upload or stream to detect cracks, rusts, or defects on metal surfaces.")
+st.write("Upload an image or video to detect cracks, rusts, or other surface defects.")
 
 # -------------------- LOAD MODEL --------------------
 @st.cache_resource
 def load_model():
-    model_path = r"C:\Users\pavan\Downloads\yolo_IND\runs\train\defect_detector6\weights\best.pt"
-    return YOLO(model_path)
+    # Use relative path for Streamlit Cloud (model file in repo root or models/)
+    model_path = "models/best.pt"
+    model = YOLO(model_path)
+    return model
 
 model = load_model()
 
-# -------------------- MAIN FLOW --------------------
+# -------------------- SIDEBAR OPTIONS --------------------
 st.sidebar.header("⚙️ Options")
 input_type = st.sidebar.radio("Select Input Type", ["Image", "Video"])
 save_output = st.sidebar.checkbox("💾 Save Output", value=False)
@@ -28,19 +30,20 @@ save_output = st.sidebar.checkbox("💾 Save Output", value=False)
 if input_type == "Image":
     uploaded_file = st.file_uploader("📷 Upload an Image", type=["jpg", "jpeg", "png"])
 
-    if uploaded_file:
+    if uploaded_file is not None:
         image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Image", use_column_width=True)
 
         if st.button("🔍 Detect Defects"):
             with st.spinner("Detecting defects..."):
                 results = model(image)
-                res_plotted = results[0].plot()
+                res_plotted = results[0].plot()  # returns a numpy array (BGR)
 
-                # Display image with detections
-                st.image(res_plotted, caption="Detected Defects", use_column_width=True)
+                # Convert BGR to RGB for Streamlit display
+                res_rgb = cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB)
+                st.image(res_rgb, caption="Detected Defects", use_column_width=True)
 
-                # Extract and show detection info
+                # Display detected boxes
                 boxes = results[0].boxes
                 if boxes is not None and len(boxes) > 0:
                     st.subheader("📊 Detection Details:")
@@ -51,57 +54,51 @@ if input_type == "Image":
                 else:
                     st.warning("No defects detected.")
 
-                # Save output if requested
+                # Save output image if selected
                 if save_output:
-                    output_path = os.path.join("output_image.jpg")
-                    cv2.imwrite(output_path, cv2.cvtColor(res_plotted, cv2.COLOR_RGB2BGR))
-                    st.success(f"💾 Image saved to `{output_path}`")
+                    output_path = "output_image.jpg"
+                    cv2.imwrite(output_path, res_plotted)
+                    st.success(f"💾 Image saved as `{output_path}`")
 
                 st.success("✅ Detection Complete!")
 
 # -------------------- VIDEO DETECTION --------------------
 elif input_type == "Video":
-    video_option = st.radio("Select Video Source", ["📁 Upload MP4", "🎥 Live Webcam"])
+    uploaded_video = st.file_uploader("📹 Upload a video", type=["mp4", "avi", "mov", "mkv"])
 
-    if video_option == "📁 Upload MP4":
-        uploaded_video = st.file_uploader("Upload a Video", type=["mp4", "mov", "avi", "mkv"])
-        if uploaded_video:
-            tfile = tempfile.NamedTemporaryFile(delete=False)
-            tfile.write(uploaded_video.read())
-            video_path = tfile.name
-        else:
-            video_path = None
-    else:
-        video_path = 0  # webcam
+    if uploaded_video is not None:
+        tfile = tempfile.NamedTemporaryFile(delete=False)
+        tfile.write(uploaded_video.read())
+        video_path = tfile.name
 
-    if st.button("▶️ Start Detection") and video_path is not None:
-        cap = cv2.VideoCapture(video_path)
-        stframe = st.empty()
+        if st.button("▶️ Start Detection"):
+            cap = cv2.VideoCapture(video_path)
+            stframe = st.empty()
 
-        if save_output:
-            fourcc = cv2.VideoWriter_fourcc(*'XVID')
-            out = cv2.VideoWriter("output_video.avi", fourcc, 20.0, (
-                int(cap.get(3)), int(cap.get(4))))
-            st.info("💾 Saving output video...")
-
-        with st.spinner("Processing video..."):
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                results = model(frame)
-                annotated_frame = results[0].plot()
-
-                # Stream to Streamlit
-                stframe.image(annotated_frame, channels="BGR", use_column_width=True)
-
-                if save_output:
-                    out.write(annotated_frame)
-
-            cap.release()
             if save_output:
-                out.release()
-                st.success("🎬 Output video saved as `output_video.avi`")
+                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                out = cv2.VideoWriter("output_video.avi", fourcc, 20.0, (
+                    int(cap.get(3)), int(cap.get(4))))
+                st.info("💾 Saving output video...")
 
-        st.success("✅ Video Processing Complete!")
+            with st.spinner("Processing video..."):
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
+                    results = model(frame)
+                    annotated_frame = results[0].plot()
+
+                    # Stream the frame in Streamlit
+                    stframe.image(annotated_frame, channels="BGR", use_column_width=True)
+
+                    if save_output:
+                        out.write(annotated_frame)
+
+                cap.release()
+                if save_output:
+                    out.release()
+                    st.success("🎬 Output video saved as `output_video.avi`")
+
+            st.success("✅ Video Processing Complete!")
