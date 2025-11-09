@@ -14,12 +14,18 @@ st.write("Upload an image or video to detect cracks, rusts, or other surface def
 # -------------------- LOAD MODEL --------------------
 @st.cache_resource
 def load_model():
-    # Use relative path for Streamlit Cloud (model file in repo root or models/)
-    model_path = "models/best.pt"
+    # ✅ Correct relative path to your trained model
+    model_path = "defect_detector6/weights/best.pt"
+
+    if not os.path.exists(model_path):
+        st.error(f"❌ Model not found at {model_path}. Please check your repository path.")
+        st.stop()
+
     model = YOLO(model_path)
     return model
 
 model = load_model()
+st.success("✅ Model loaded successfully!")
 
 # -------------------- SIDEBAR OPTIONS --------------------
 st.sidebar.header("⚙️ Options")
@@ -37,13 +43,13 @@ if input_type == "Image":
         if st.button("🔍 Detect Defects"):
             with st.spinner("Detecting defects..."):
                 results = model(image)
-                res_plotted = results[0].plot()  # returns a numpy array (BGR)
+                res_plotted = results[0].plot()  # returns numpy array (BGR)
 
-                # Convert BGR to RGB for Streamlit display
+                # Convert to RGB for Streamlit display
                 res_rgb = cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB)
                 st.image(res_rgb, caption="Detected Defects", use_column_width=True)
 
-                # Display detected boxes
+                # Show detection info
                 boxes = results[0].boxes
                 if boxes is not None and len(boxes) > 0:
                     st.subheader("📊 Detection Details:")
@@ -54,7 +60,7 @@ if input_type == "Image":
                 else:
                     st.warning("No defects detected.")
 
-                # Save output image if selected
+                # Save result
                 if save_output:
                     output_path = "output_image.jpg"
                     cv2.imwrite(output_path, res_plotted)
@@ -64,7 +70,7 @@ if input_type == "Image":
 
 # -------------------- VIDEO DETECTION --------------------
 elif input_type == "Video":
-    uploaded_video = st.file_uploader("📹 Upload a video", type=["mp4", "avi", "mov", "mkv"])
+    uploaded_video = st.file_uploader("📹 Upload a Video", type=["mp4", "avi", "mov", "mkv"])
 
     if uploaded_video is not None:
         tfile = tempfile.NamedTemporaryFile(delete=False)
@@ -90,7 +96,7 @@ elif input_type == "Video":
                     results = model(frame)
                     annotated_frame = results[0].plot()
 
-                    # Stream the frame in Streamlit
+                    # Stream to Streamlit
                     stframe.image(annotated_frame, channels="BGR", use_column_width=True)
 
                     if save_output:
