@@ -1,0 +1,5 @@
+train: C:\Users\pavan\Downloads\yolo_IND\new_data_train\train\images
+val: C:\Users\pavan\Downloads\yolo_IND\new_data_val\train\images
+
+nc: 6
+names: ['crazing', 'inclusion', 'patches', 'pitted_surface', 'rolled_in_scale', 'scratches']
