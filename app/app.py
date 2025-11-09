@@ -1,10 +1,15 @@
+import os
+# Prevent OpenCV GUI issues on Streamlit Cloud
+os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
 import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 import cv2
 import tempfile
 import numpy as np
-import os
+
 
 # -------------------- PAGE SETUP --------------------
 st.set_page_config(page_title="Industrial Defect Detection", layout="wide")
@@ -108,3 +113,4 @@ elif input_type == "Video":
                     st.success("🎬 Output video saved as `output_video.avi`")
 
             st.success("✅ Video Processing Complete!")
+
